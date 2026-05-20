@@ -83,6 +83,8 @@ body {
   right: 16px;
   top: 16px;
   width: 260px;
+  max-height: calc(100% - 32px);
+  overflow: auto;
   border: 1px solid var(--line);
   background:
     linear-gradient(180deg, rgba(42, 50, 87, 0.92), rgba(20, 24, 42, 0.92));
@@ -154,4 +156,19 @@ body {
 .agent-log-title {
   color: var(--accent-2);
   font-weight: 700;
+}
+
+.memory-actions {
+  margin-top: 8px;
+}
+
+.memory-actions button {
+  width: 100%;
+  border: 1px solid #7e9bcf;
+  background: linear-gradient(180deg, #8ba5d1, #6e84ad);
+  color: #0f1525;
+  font: inherit;
+  font-weight: 700;
+  padding: 6px 8px;
+  cursor: pointer;
 }
