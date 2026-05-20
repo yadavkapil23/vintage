@@ -4,14 +4,16 @@ import { CHUNK_SIZE, TILE_SIZE } from "@living/world-core";
 import { useCameraStore } from "../store/cameraStore";
 import { getVisibleChunks } from "../world/chunks";
 import type { MemoryEcho } from "../world/memoryEngine";
+import type { EchoAgent } from "../world/agents";
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 type MapCanvasProps = {
   memories: MemoryEcho[];
+  agents: EchoAgent[];
 };
 
-export function MapCanvas({ memories }: MapCanvasProps) {
+export function MapCanvas({ memories, agents }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef(useCameraStore.getState());
   const errorRef = useRef<HTMLDivElement | null>(null);
@@ -146,24 +148,60 @@ export function MapCanvas({ memories }: MapCanvasProps) {
         }
 
         for (const memory of memories) {
+          const decay = memory.decayLevel;
+          const isForgotten = decay >= 0.8;
+          const isMutated = memory.mutated;
+          const beaconColor = isMutated ? 0xb38cff : isForgotten ? 0x786d88 : 0xffc488;
           const beacon = new Graphics();
           beacon.circle(memory.worldX * TILE_SIZE, memory.worldY * TILE_SIZE, 11);
-          beacon.fill(0xffc488);
+          beacon.fill(beaconColor);
           beacon.stroke({ width: 2, color: 0x2b1c0e, alpha: 0.9 });
+          beacon.alpha = 1 - decay * 0.55;
           world.addChild(beacon);
 
           const ring = new Graphics();
           const wave = (Math.sin(now * 1.8 + memory.worldX * 0.04) + 1) * 0.5;
           ring.circle(memory.worldX * TILE_SIZE, memory.worldY * TILE_SIZE, 16 + wave * 10);
-          ring.stroke({ width: 2, color: 0xffa760, alpha: 0.25 + wave * 0.25 });
+          ring.stroke({
+            width: 2,
+            color: isMutated ? 0xd0b0ff : isForgotten ? 0x8878aa : 0xffa760,
+            alpha: (0.25 + wave * 0.25) * (1 - decay * 0.6),
+          });
           world.addChild(ring);
 
           const label = new Text({
-            text: `${memory.district} [${memory.semanticTags.join(", ")}]`,
-            style: { fill: 0xffd7b1, fontSize: 13, fontFamily: "monospace" },
+            text: `${isMutated ? "Mutated Region" : isForgotten ? "Forgotten Region" : memory.district} [${memory.semanticTags.join(", ")}]`,
+            style: { fill: isMutated ? 0xe6d8ff : isForgotten ? 0xb9aad1 : 0xffd7b1, fontSize: 13, fontFamily: "monospace" },
           });
           label.x = memory.worldX * TILE_SIZE + 15;
           label.y = memory.worldY * TILE_SIZE - 8;
+          label.alpha = 1 - decay * 0.45;
+          world.addChild(label);
+        }
+
+        for (const agent of agents) {
+          const body = new Graphics();
+          body.circle(agent.x * TILE_SIZE, agent.y * TILE_SIZE, 6);
+          body.fill(agent.state === "preserving" ? 0x8fffcf : 0x9fc5ff);
+          body.stroke({ width: 2, color: 0x162032, alpha: 0.9 });
+          world.addChild(body);
+
+          const aura = new Graphics();
+          const pulse = (Math.sin(now * 4 + agent.x * 0.03) + 1) * 0.5;
+          aura.circle(agent.x * TILE_SIZE, agent.y * TILE_SIZE, 9 + pulse * 4);
+          aura.stroke({
+            width: 1.5,
+            color: agent.state === "preserving" ? 0x7df7b8 : 0x8fb5ff,
+            alpha: 0.25 + pulse * 0.2,
+          });
+          world.addChild(aura);
+
+          const label = new Text({
+            text: agent.name,
+            style: { fill: 0xd6e8ff, fontSize: 11, fontFamily: "monospace" },
+          });
+          label.x = agent.x * TILE_SIZE + 9;
+          label.y = agent.y * TILE_SIZE - 14;
           world.addChild(label);
         }
 
@@ -188,7 +226,7 @@ export function MapCanvas({ memories }: MapCanvasProps) {
       cancelAnimationFrame(raf);
       app.destroy(true, { children: true });
     };
-  }, [memories]);
+  }, [memories, agents]);
 
   return (
     <div className="map-wrap">
