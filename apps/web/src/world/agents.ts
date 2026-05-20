@@ -1,4 +1,4 @@
-export type AgentKind = "archivist";
+export type AgentKind = "archivist" | "collector";
 
 export type EchoAgent = {
   id: string;
@@ -11,7 +11,7 @@ export type EchoAgent = {
   state: "idle" | "patrolling" | "preserving";
 };
 
-export function createArchivists(count = 6): EchoAgent[] {
+function createAgentGroup(kind: AgentKind, count: number, radius: number, startAngle: number): EchoAgent[] {
   const names = [
     "Iris",
     "Rune",
@@ -26,17 +26,24 @@ export function createArchivists(count = 6): EchoAgent[] {
   const traits: EchoAgent["trait"][] = ["gentle", "obsessive", "poetic", "stoic"];
   const out: EchoAgent[] = [];
   for (let i = 0; i < count; i++) {
-    const angle = (i / Math.max(1, count)) * Math.PI * 2;
+    const angle = startAngle + (i / Math.max(1, count)) * Math.PI * 2;
     out.push({
-      id: `archivist-${i + 1}`,
-      kind: "archivist",
+      id: `${kind}-${i + 1}`,
+      kind,
       name: names[i % names.length],
       trait: traits[i % traits.length],
-      x: Math.cos(angle) * 120,
-      y: Math.sin(angle) * 120,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
       targetMemoryId: null,
       state: "patrolling",
     });
   }
   return out;
+}
+
+export function createCitizens(archivists = 5, collectors = 3): EchoAgent[] {
+  return [
+    ...createAgentGroup("archivist", archivists, 120, 0),
+    ...createAgentGroup("collector", collectors, 170, Math.PI / 5),
+  ];
 }
