@@ -3,7 +3,7 @@ import { MapCanvas } from "./components/MapCanvas";
 import { useCameraStore } from "./store/cameraStore";
 import { mutateMemory, synthesizeMemoryEcho } from "./world/memoryEngine";
 import type { MemoryEcho } from "./world/memoryEngine";
-import { createArchivists } from "./world/agents";
+import { createCitizens } from "./world/agents";
 import type { EchoAgent } from "./world/agents";
 
 type AgentEvent = {
@@ -19,11 +19,18 @@ const traitVoice: Record<EchoAgent["trait"], string[]> = {
   stoic: ["secured", "fortified", "recovered"],
 };
 
+const collectorVoice: Record<EchoAgent["trait"], string[]> = {
+  gentle: ["rescued fragments from", "mended the edges of", "coaxed signal back into"],
+  obsessive: ["recompiled ruins of", "catalogued anomalies in", "sealed corruption around"],
+  poetic: ["sang static lullabies to", "stitched moonlight into", "reframed the myth of"],
+  stoic: ["stabilized breach lines in", "contained distortion in", "recovered structural memory in"],
+};
+
 export function App() {
   const { x, y, zoom } = useCameraStore();
   const [memoryText, setMemoryText] = useState("");
   const [memories, setMemories] = useState<MemoryEcho[]>([]);
-  const [agents, setAgents] = useState<EchoAgent[]>(() => createArchivists(7));
+  const [agents, setAgents] = useState<EchoAgent[]>(() => createCitizens(5, 3));
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
 
   const latest = useMemo(() => memories[memories.length - 1], [memories]);
@@ -47,14 +54,23 @@ export function App() {
           const dy = memory.worldY - y;
           const dist = Math.hypot(dx, dy);
           const isRevisited = dist < 36 / Math.max(zoom, 0.25);
-          const isPreservedByAgent = nextAgents.some((agent) => {
+          const isPreservedByArchivist = nextAgents.some((agent) => {
+            if (agent.kind !== "archivist") return false;
             const adx = memory.worldX - agent.x;
             const ady = memory.worldY - agent.y;
             return Math.hypot(adx, ady) < 18;
           });
+          const isPreservedByCollector = nextAgents.some((agent) => {
+            if (agent.kind !== "collector") return false;
+            const adx = memory.worldX - agent.x;
+            const ady = memory.worldY - agent.y;
+            return Math.hypot(adx, ady) < 22;
+          });
           const nextDecay = isRevisited
             ? Math.max(0, memory.decayLevel - 0.045)
-            : isPreservedByAgent
+            : isPreservedByCollector && (memory.mutated || memory.decayLevel > 0.75)
+              ? Math.max(0, memory.decayLevel - 0.04)
+              : isPreservedByArchivist
               ? Math.max(0, memory.decayLevel - 0.03)
               : Math.min(1, memory.decayLevel + 0.012);
           const base = {
@@ -93,24 +109,28 @@ export function App() {
             }
 
             const risky = [...next].sort((a, b) => b.decayLevel - a.decayLevel)[0];
-            const tx = risky.worldX;
-            const ty = risky.worldY;
+            const anomalyTarget = [...next]
+              .filter((m) => m.mutated || m.decayLevel >= 0.8)
+              .sort((a, b) => b.decayLevel - a.decayLevel)[0];
+            const target = agent.kind === "collector" ? (anomalyTarget ?? risky) : risky;
+            const tx = target.worldX;
+            const ty = target.worldY;
             const vx = tx - agent.x;
             const vy = ty - agent.y;
             const d = Math.hypot(vx, vy) || 1;
-            const step = Math.min(2.2, d);
+            const step = Math.min(agent.kind === "collector" ? 2.7 : 2.2, d);
             const nx = agent.x + (vx / d) * step;
             const ny = agent.y + (vy / d) * step;
             const nextState: EchoAgent["state"] = d < 10 ? "preserving" : "patrolling";
             if (agent.state !== "preserving" && nextState === "preserving") {
-              const verbs = traitVoice[agent.trait];
+              const verbs = agent.kind === "collector" ? collectorVoice[agent.trait] : traitVoice[agent.trait];
               const verb = verbs[(Math.floor(now / 1000) + index) % verbs.length];
               setAgentEvents((events) =>
                 [
                   {
-                    id: `${agent.id}-${risky.id}-${now}`,
+                    id: `${agent.id}-${target.id}-${now}`,
                     at: now,
-                    text: `${agent.name} (${agent.trait}) ${verb} ${risky.district}.`,
+                    text: `${agent.name} (${agent.kind}/${agent.trait}) ${verb} ${target.district}.`,
                   },
                   ...events,
                 ].slice(0, 14)
@@ -120,7 +140,7 @@ export function App() {
               ...agent,
               x: nx,
               y: ny,
-              targetMemoryId: risky.id,
+              targetMemoryId: target.id,
               state: nextState,
             };
           })
@@ -136,6 +156,8 @@ export function App() {
   const forgottenMemories = memories.length - activeMemories;
   const mutatedMemories = memories.filter((m) => m.mutated).length;
   const preservingAgents = agents.filter((a) => a.state === "preserving").length;
+  const collectorCount = agents.filter((a) => a.kind === "collector").length;
+  const archivistCount = agents.length - collectorCount;
 
   return (
     <main className="shell">
@@ -163,7 +185,9 @@ export function App() {
           <p>Active memories: {activeMemories}</p>
           <p>Forgotten memories: {forgottenMemories}</p>
           <p>Mutated memories: {mutatedMemories}</p>
-          <p>Archivists preserving: {preservingAgents}/{agents.length}</p>
+          <p>Archivists: {archivistCount}</p>
+          <p>Collectors: {collectorCount}</p>
+          <p>Citizens preserving: {preservingAgents}/{agents.length}</p>
           <p>
             camera: ({x.toFixed(1)}, {y.toFixed(1)})
           </p>
@@ -178,7 +202,7 @@ export function App() {
             <p>No memory districts yet.</p>
           )}
           <div className="agent-log">
-            <p className="agent-log-title">Archivist Wire</p>
+            <p className="agent-log-title">Citizen Wire</p>
             {agentEvents.length === 0 ? (
               <p>Awaiting first preservation event...</p>
             ) : (
