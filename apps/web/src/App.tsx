@@ -12,6 +12,8 @@ type AgentEvent = {
   text: string;
 };
 
+type Faction = "archivist" | "collector" | "troll";
+
 const traitVoice: Record<EchoAgent["trait"], string[]> = {
   gentle: ["stabilized", "softly preserved", "kept warm"],
   obsessive: ["indexed", "cross-referenced", "locked into archive"],
@@ -178,6 +180,32 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [x, y, zoom, agents]);
 
+  const territoryByMemory = useMemo(() => {
+    const out: Record<string, Faction> = {};
+    for (const memory of memories) {
+      let bestFaction: Faction = "archivist";
+      let bestScore = -Infinity;
+      const influence: Record<Faction, number> = { archivist: 0, collector: 0, troll: 0 };
+      for (const agent of agents) {
+        const dx = memory.worldX - agent.x;
+        const dy = memory.worldY - agent.y;
+        const d = Math.hypot(dx, dy);
+        const localInfluence = 1 / (1 + d * 0.1);
+        if (agent.kind === "archivist" || agent.kind === "collector" || agent.kind === "troll") {
+          influence[agent.kind] += localInfluence;
+        }
+      }
+      (Object.keys(influence) as Faction[]).forEach((faction) => {
+        if (influence[faction] > bestScore) {
+          bestScore = influence[faction];
+          bestFaction = faction;
+        }
+      });
+      out[memory.id] = bestFaction;
+    }
+    return out;
+  }, [memories, agents]);
+
   const activeMemories = memories.filter((m) => m.decayLevel < 0.8).length;
   const forgottenMemories = memories.length - activeMemories;
   const mutatedMemories = memories.filter((m) => m.mutated).length;
@@ -185,6 +213,11 @@ export function App() {
   const archivistCount = agents.filter((a) => a.kind === "archivist").length;
   const collectorCount = agents.filter((a) => a.kind === "collector").length;
   const trollCount = agents.filter((a) => a.kind === "troll").length;
+  const territoryCounts = useMemo(() => {
+    const counts: Record<Faction, number> = { archivist: 0, collector: 0, troll: 0 };
+    Object.values(territoryByMemory).forEach((f) => (counts[f] += 1));
+    return counts;
+  }, [territoryByMemory]);
 
   return (
     <main className="shell">
@@ -192,7 +225,7 @@ export function App() {
         <span>EchoNet - A Living Internet Built From Human Memory</span>
       </header>
       <section className="viewport">
-        <MapCanvas memories={memories} agents={agents} />
+        <MapCanvas memories={memories} agents={agents} territoryByMemory={territoryByMemory} />
         <aside className="hud">
           <h2>Echo Engine</h2>
           <form onSubmit={onSubmit} className="memory-form">
@@ -216,6 +249,7 @@ export function App() {
           <p>Collectors: {collectorCount}</p>
           <p>Trolls: {trollCount}</p>
           <p>Citizens preserving: {preservingAgents}/{agents.length}</p>
+          <p>Territory A/C/T: {territoryCounts.archivist}/{territoryCounts.collector}/{territoryCounts.troll}</p>
           <p>
             camera: ({x.toFixed(1)}, {y.toFixed(1)})
           </p>
