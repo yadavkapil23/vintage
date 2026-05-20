@@ -1,4 +1,4 @@
-export type AgentKind = "archivist" | "collector";
+export type AgentKind = "archivist" | "collector" | "troll";
 
 export type EchoAgent = {
   id: string;
@@ -45,5 +45,6 @@ export function createCitizens(archivists = 5, collectors = 3): EchoAgent[] {
   return [
     ...createAgentGroup("archivist", archivists, 120, 0),
     ...createAgentGroup("collector", collectors, 170, Math.PI / 5),
+    ...createAgentGroup("troll", 2, 210, Math.PI / 2),
   ];
 }
