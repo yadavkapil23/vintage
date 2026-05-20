@@ -12,9 +12,11 @@ type MapCanvasProps = {
   memories: MemoryEcho[];
   agents: EchoAgent[];
   territoryByMemory: Record<string, "archivist" | "collector" | "troll">;
+  selectedMemoryId: string | null;
+  onSelectMemory: (memoryId: string | null) => void;
 };
 
-export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProps) {
+export function MapCanvas({ memories, agents, territoryByMemory, selectedMemoryId, onSelectMemory }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef(useCameraStore.getState());
   const errorRef = useRef<HTMLDivElement | null>(null);
@@ -44,11 +46,13 @@ export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProp
       world.addChild(frame);
 
       let dragging = false;
+      let moved = false;
       let lastX = 0;
       let lastY = 0;
 
       const onDown = (e: MouseEvent) => {
         dragging = true;
+        moved = false;
         lastX = e.clientX;
         lastY = e.clientY;
       };
@@ -57,6 +61,7 @@ export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProp
         if (!dragging) return;
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
+        if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
         lastX = e.clientX;
         lastY = e.clientY;
 
@@ -74,10 +79,33 @@ export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProp
         useCameraStore.getState().setCamera({ zoom: nextZoom });
       };
 
+      const onClick = (e: MouseEvent) => {
+        if (moved) return;
+        const rect = host.getBoundingClientRect();
+        const cam = cameraRef.current;
+        const worldX = (e.clientX - rect.left - app.renderer.width / 2) / (TILE_SIZE * cam.zoom) + cam.x;
+        const worldY = (e.clientY - rect.top - app.renderer.height / 2) / (TILE_SIZE * cam.zoom) + cam.y;
+        let nearest: MemoryEcho | null = null;
+        let nearestD = Infinity;
+        for (const memory of memories) {
+          const d = Math.hypot(memory.worldX - worldX, memory.worldY - worldY);
+          if (d < nearestD) {
+            nearestD = d;
+            nearest = memory;
+          }
+        }
+        if (nearest && nearestD < 0.45 / cam.zoom + 0.5) {
+          onSelectMemory(nearest.id);
+        } else {
+          onSelectMemory(null);
+        }
+      };
+
       host.addEventListener("mousedown", onDown);
       window.addEventListener("mouseup", onUp);
       window.addEventListener("mousemove", onMove);
       host.addEventListener("wheel", onWheel, { passive: false });
+      host.addEventListener("click", onClick);
 
       const draw = () => {
         const cam = cameraRef.current;
@@ -185,6 +213,13 @@ export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProp
           control.circle(memory.worldX * TILE_SIZE, memory.worldY * TILE_SIZE, 24);
           control.stroke({ width: 1.8, color: factionColor, alpha: 0.42 });
           world.addChild(control);
+
+          if (memory.id === selectedMemoryId) {
+            const selected = new Graphics();
+            selected.circle(memory.worldX * TILE_SIZE, memory.worldY * TILE_SIZE, 30);
+            selected.stroke({ width: 2.5, color: 0xffffff, alpha: 0.8 });
+            world.addChild(selected);
+          }
         }
 
         for (const agent of agents) {
@@ -248,7 +283,7 @@ export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProp
       cancelAnimationFrame(raf);
       app.destroy(true, { children: true });
     };
-  }, [memories, agents, territoryByMemory]);
+  }, [memories, agents, territoryByMemory, selectedMemoryId, onSelectMemory]);
 
   return (
     <div className="map-wrap">
