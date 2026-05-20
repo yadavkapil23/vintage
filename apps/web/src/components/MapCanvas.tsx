@@ -11,9 +11,10 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 type MapCanvasProps = {
   memories: MemoryEcho[];
   agents: EchoAgent[];
+  territoryByMemory: Record<string, "archivist" | "collector" | "troll">;
 };
 
-export function MapCanvas({ memories, agents }: MapCanvasProps) {
+export function MapCanvas({ memories, agents, territoryByMemory }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef(useCameraStore.getState());
   const errorRef = useRef<HTMLDivElement | null>(null);
@@ -177,6 +178,13 @@ export function MapCanvas({ memories, agents }: MapCanvasProps) {
           label.y = memory.worldY * TILE_SIZE - 8;
           label.alpha = 1 - decay * 0.45;
           world.addChild(label);
+
+          const faction = territoryByMemory[memory.id] ?? "archivist";
+          const factionColor = faction === "troll" ? 0xff4e97 : faction === "collector" ? 0xffb462 : 0x79e3b5;
+          const control = new Graphics();
+          control.circle(memory.worldX * TILE_SIZE, memory.worldY * TILE_SIZE, 24);
+          control.stroke({ width: 1.8, color: factionColor, alpha: 0.42 });
+          world.addChild(control);
         }
 
         for (const agent of agents) {
@@ -240,7 +248,7 @@ export function MapCanvas({ memories, agents }: MapCanvasProps) {
       cancelAnimationFrame(raf);
       app.destroy(true, { children: true });
     };
-  }, [memories, agents]);
+  }, [memories, agents, territoryByMemory]);
 
   return (
     <div className="map-wrap">
