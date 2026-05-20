@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MapCanvas } from "./components/MapCanvas";
 import { useCameraStore } from "./store/cameraStore";
 import { mutateMemory, synthesizeMemoryEcho } from "./world/memoryEngine";
@@ -10,6 +10,7 @@ type AgentEvent = {
   id: string;
   at: number;
   text: string;
+  memoryId?: string;
 };
 
 type Faction = "archivist" | "collector" | "troll";
@@ -41,6 +42,20 @@ export function App() {
   const [memories, setMemories] = useState<MemoryEcho[]>([]);
   const [agents, setAgents] = useState<EchoAgent[]>(() => createCitizens(5, 3));
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+  const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null);
+  const [decayHistoryByMemory, setDecayHistoryByMemory] = useState<Record<string, number[]>>({});
+  const [ownerHistoryByMemory, setOwnerHistoryByMemory] = useState<Record<string, Faction[]>>({});
+  const [territoryCaptureCounts, setTerritoryCaptureCounts] = useState<Record<Faction, number>>({
+    archivist: 0,
+    collector: 0,
+    troll: 0,
+  });
+  const [territoryStreakLeader, setTerritoryStreakLeader] = useState<{ faction: Faction; count: number }>({
+    faction: "archivist",
+    count: 0,
+  });
+  const previousTerritoryRef = useRef<Record<string, Faction>>({});
+  const factionStreakRef = useRef<{ faction: Faction; count: number }>({ faction: "archivist", count: 0 });
 
   const latest = useMemo(() => memories[memories.length - 1], [memories]);
 
@@ -50,6 +65,7 @@ export function App() {
     if (!value) return;
     const echo = synthesizeMemoryEcho(value);
     setMemories((prev) => [echo, ...prev].slice(0, 120));
+    setSelectedMemoryId(echo.id);
     setMemoryText("");
   };
 
@@ -103,6 +119,7 @@ export function App() {
                   id: `mutation-${base.id}-${now}`,
                   at: now,
                   text: `Region mutation detected: ${mutated.district} emerged from memory drift.`,
+                  memoryId: base.id,
                 },
                 ...events,
               ].slice(0, 14)
@@ -159,6 +176,7 @@ export function App() {
                     id: `${agent.id}-${target.id}-${now}`,
                     at: now,
                     text: `${agent.name} (${agent.kind}/${agent.trait}) ${verb} ${target.district}.`,
+                    memoryId: target.id,
                   },
                   ...events,
                 ].slice(0, 14)
@@ -206,6 +224,85 @@ export function App() {
     return out;
   }, [memories, agents]);
 
+  useEffect(() => {
+    const prev = previousTerritoryRef.current;
+    if (Object.keys(prev).length === 0) {
+      previousTerritoryRef.current = territoryByMemory;
+      return;
+    }
+
+    let changed = false;
+    const captureDelta: Record<Faction, number> = { archivist: 0, collector: 0, troll: 0 };
+    let nextStreak = factionStreakRef.current;
+    const now = Date.now();
+
+    for (const memory of memories) {
+      const nextOwner = territoryByMemory[memory.id];
+      const prevOwner = prev[memory.id];
+      if (!nextOwner || !prevOwner || nextOwner === prevOwner) continue;
+      changed = true;
+      captureDelta[nextOwner] += 1;
+      const action = memory.decayLevel > 0.65 || memory.mutated ? "recaptured" : "captured";
+      setAgentEvents((events) =>
+        [
+          {
+            id: `territory-${memory.id}-${now}-${nextOwner}`,
+            at: now,
+            text: `Territory shift: ${nextOwner.toUpperCase()} ${action} ${memory.district}.`,
+            memoryId: memory.id,
+          },
+          ...events,
+        ].slice(0, 14)
+      );
+
+      if (nextStreak.faction === nextOwner) {
+        nextStreak = { faction: nextOwner, count: nextStreak.count + 1 };
+      } else {
+        nextStreak = { faction: nextOwner, count: 1 };
+      }
+    }
+
+    if (changed) {
+      setTerritoryCaptureCounts((prevCounts) => ({
+        archivist: prevCounts.archivist + captureDelta.archivist,
+        collector: prevCounts.collector + captureDelta.collector,
+        troll: prevCounts.troll + captureDelta.troll,
+      }));
+      factionStreakRef.current = nextStreak;
+      setTerritoryStreakLeader(nextStreak);
+    }
+
+    previousTerritoryRef.current = territoryByMemory;
+  }, [territoryByMemory, memories]);
+
+  useEffect(() => {
+    setDecayHistoryByMemory((prev) => {
+      const next: Record<string, number[]> = { ...prev };
+      for (const memory of memories) {
+        const seq = next[memory.id] ? [...next[memory.id]] : [];
+        const value = Math.round(memory.decayLevel * 100);
+        if (seq.length === 0 || seq[seq.length - 1] !== value) {
+          seq.push(value);
+        }
+        next[memory.id] = seq.slice(-18);
+      }
+      return next;
+    });
+    setOwnerHistoryByMemory((prev) => {
+      const next: Record<string, Faction[]> = { ...prev };
+      for (const memory of memories) {
+        const owner = territoryByMemory[memory.id];
+        if (!owner) continue;
+        const seq = next[memory.id] ? [...next[memory.id]] : [];
+        if (seq.length === 0 || seq[seq.length - 1] !== owner) {
+          seq.push(owner);
+        }
+        next[memory.id] = seq.slice(-10);
+      }
+      return next;
+    });
+  }, [memories, territoryByMemory]);
+
   const activeMemories = memories.filter((m) => m.decayLevel < 0.8).length;
   const forgottenMemories = memories.length - activeMemories;
   const mutatedMemories = memories.filter((m) => m.mutated).length;
@@ -218,6 +315,16 @@ export function App() {
     Object.values(territoryByMemory).forEach((f) => (counts[f] += 1));
     return counts;
   }, [territoryByMemory]);
+  const selectedMemory = useMemo(
+    () => memories.find((m) => m.id === selectedMemoryId) ?? latest ?? null,
+    [memories, selectedMemoryId, latest]
+  );
+  const selectedOwner = selectedMemory ? territoryByMemory[selectedMemory.id] : null;
+  const selectedDecayHistory = selectedMemory ? decayHistoryByMemory[selectedMemory.id] ?? [] : [];
+  const selectedOwnerHistory = selectedMemory ? ownerHistoryByMemory[selectedMemory.id] ?? [] : [];
+  const selectedEvents = selectedMemory
+    ? agentEvents.filter((e) => e.memoryId === selectedMemory.id).slice(0, 4)
+    : [];
 
   return (
     <main className="shell">
@@ -225,7 +332,13 @@ export function App() {
         <span>EchoNet - A Living Internet Built From Human Memory</span>
       </header>
       <section className="viewport">
-        <MapCanvas memories={memories} agents={agents} territoryByMemory={territoryByMemory} />
+        <MapCanvas
+          memories={memories}
+          agents={agents}
+          territoryByMemory={territoryByMemory}
+          selectedMemoryId={selectedMemory ? selectedMemory.id : null}
+          onSelectMemory={setSelectedMemoryId}
+        />
         <aside className="hud">
           <h2>Echo Engine</h2>
           <form onSubmit={onSubmit} className="memory-form">
@@ -250,6 +363,8 @@ export function App() {
           <p>Trolls: {trollCount}</p>
           <p>Citizens preserving: {preservingAgents}/{agents.length}</p>
           <p>Territory A/C/T: {territoryCounts.archivist}/{territoryCounts.collector}/{territoryCounts.troll}</p>
+          <p>Captures A/C/T: {territoryCaptureCounts.archivist}/{territoryCaptureCounts.collector}/{territoryCaptureCounts.troll}</p>
+          <p>Streak: {territoryStreakLeader.faction} x{territoryStreakLeader.count}</p>
           <p>
             camera: ({x.toFixed(1)}, {y.toFixed(1)})
           </p>
@@ -275,6 +390,26 @@ export function App() {
               ))
             )}
           </div>
+          {selectedMemory ? (
+            <div className="agent-log">
+              <p className="agent-log-title">Region Inspector</p>
+              <p>ID: {selectedMemory.id}</p>
+              <p>District: {selectedMemory.district}</p>
+              <p>Owner: {selectedOwner ?? "unknown"}</p>
+              <p>Decay Trend: {selectedDecayHistory.length ? selectedDecayHistory.join("% -> ") + "%" : "n/a"}</p>
+              <p>Owner History: {selectedOwnerHistory.length ? selectedOwnerHistory.join(" -> ") : "n/a"}</p>
+              <p>Recent Region Events:</p>
+              {selectedEvents.length ? (
+                selectedEvents.map((event) => (
+                  <p key={`inspect-${event.id}`}>
+                    [{new Date(event.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] {event.text}
+                  </p>
+                ))
+              ) : (
+                <p>No direct events yet.</p>
+              )}
+            </div>
+          ) : null}
         </aside>
       </section>
     </main>
