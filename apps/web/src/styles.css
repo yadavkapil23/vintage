@@ -142,3 +142,16 @@ body {
 .memory-form button:hover {
   filter: brightness(1.08);
 }
+
+.agent-log {
+  margin-top: 10px;
+  border-top: 1px solid rgba(125, 149, 202, 0.45);
+  padding-top: 8px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.agent-log-title {
+  color: var(--accent-2);
+  font-weight: 700;
+}
