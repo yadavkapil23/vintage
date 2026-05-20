@@ -1,0 +1,144 @@
+:root {
+  --bg: #07090f;
+  --panel: #161b2e;
+  --panel-soft: #202744;
+  --ink: #dbe9ff;
+  --line: #6f84b8;
+  --accent: #ffb37e;
+  --accent-2: #7fd7ff;
+  --title: #b8c6ff;
+  font-family: "Lucida Console", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(67, 118, 191, 0.2), transparent 40%),
+    radial-gradient(circle at 82% 75%, rgba(166, 72, 180, 0.18), transparent 35%),
+    var(--bg);
+  color: var(--ink);
+}
+
+.shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 34px 1fr;
+}
+
+.titlebar {
+  background: linear-gradient(90deg, #111735, #2a1a35 62%, #1c1f3e);
+  border-bottom: 1px solid var(--line);
+  color: var(--title);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.map-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map-error {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #ff9a9a;
+  background: rgba(15, 0, 0, 0.75);
+  border: 1px solid #7a2525;
+  max-width: 60ch;
+}
+
+.hud {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 260px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(42, 50, 87, 0.92), rgba(20, 24, 42, 0.92));
+  color: var(--ink);
+  padding: 10px;
+  box-shadow: 0 0 0 1px rgba(4, 8, 16, 0.9), 0 8px 22px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.hud h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.hud p {
+  margin: 5px 0;
+  font-size: 13px;
+}
+
+.memory-form {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.memory-form label {
+  font-size: 12px;
+  color: #afc4ff;
+}
+
+.memory-form textarea {
+  resize: vertical;
+  min-height: 72px;
+  max-height: 180px;
+  border: 1px solid #5e6fa0;
+  background: rgba(5, 8, 18, 0.75);
+  color: var(--ink);
+  padding: 8px;
+  font: inherit;
+}
+
+.memory-form textarea::placeholder {
+  color: #8d9ac4;
+}
+
+.memory-form button {
+  border: 1px solid #9f6f4a;
+  background: linear-gradient(180deg, #d78556, #b86941);
+  color: #180f0a;
+  font: inherit;
+  font-weight: 700;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.memory-form button:hover {
+  filter: brightness(1.08);
+}
