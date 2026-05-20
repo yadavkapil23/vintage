@@ -181,9 +181,22 @@ export function MapCanvas({ memories, agents }: MapCanvasProps) {
 
         for (const agent of agents) {
           const isCollector = agent.kind === "collector";
+          const isTroll = agent.kind === "troll";
           const body = new Graphics();
           body.circle(agent.x * TILE_SIZE, agent.y * TILE_SIZE, 6);
-          body.fill(agent.state === "preserving" ? (isCollector ? 0xffd79b : 0x8fffcf) : isCollector ? 0xffbd77 : 0x9fc5ff);
+          body.fill(
+            agent.state === "preserving"
+              ? isTroll
+                ? 0xff7aa8
+                : isCollector
+                  ? 0xffd79b
+                  : 0x8fffcf
+              : isTroll
+                ? 0xff5a90
+                : isCollector
+                  ? 0xffbd77
+                  : 0x9fc5ff
+          );
           body.stroke({ width: 2, color: 0x162032, alpha: 0.9 });
           world.addChild(body);
 
@@ -192,14 +205,14 @@ export function MapCanvas({ memories, agents }: MapCanvasProps) {
           aura.circle(agent.x * TILE_SIZE, agent.y * TILE_SIZE, 9 + pulse * 4);
           aura.stroke({
             width: 1.5,
-            color: agent.state === "preserving" ? (isCollector ? 0xffc98a : 0x7df7b8) : isCollector ? 0xffad5f : 0x8fb5ff,
+            color: agent.state === "preserving" ? (isTroll ? 0xff79c9 : isCollector ? 0xffc98a : 0x7df7b8) : isTroll ? 0xff4d96 : isCollector ? 0xffad5f : 0x8fb5ff,
             alpha: 0.25 + pulse * 0.2,
           });
           world.addChild(aura);
 
           const label = new Text({
-            text: `${agent.name} ${isCollector ? "[C]" : "[A]"}`,
-            style: { fill: isCollector ? 0xffd7af : 0xd6e8ff, fontSize: 11, fontFamily: "monospace" },
+            text: `${agent.name} ${isTroll ? "[T]" : isCollector ? "[C]" : "[A]"}`,
+            style: { fill: isTroll ? 0xffb7d6 : isCollector ? 0xffd7af : 0xd6e8ff, fontSize: 11, fontFamily: "monospace" },
           });
           label.x = agent.x * TILE_SIZE + 9;
           label.y = agent.y * TILE_SIZE - 14;
