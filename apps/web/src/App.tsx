@@ -26,6 +26,13 @@ const collectorVoice: Record<EchoAgent["trait"], string[]> = {
   stoic: ["stabilized breach lines in", "contained distortion in", "recovered structural memory in"],
 };
 
+const trollVoice: Record<EchoAgent["trait"], string[]> = {
+  gentle: ["nudged static into", "blurred edges around", "whispered noise into"],
+  obsessive: ["seeded recursive spam in", "injected corruption loops into", "weaponized drift inside"],
+  poetic: ["painted glitches across", "sang entropy into", "turned memory rain acidic in"],
+  stoic: ["breached safeguards in", "destabilized archives in", "fractured continuity in"],
+};
+
 export function App() {
   const { x, y, zoom } = useCameraStore();
   const [memoryText, setMemoryText] = useState("");
@@ -66,13 +73,21 @@ export function App() {
             const ady = memory.worldY - agent.y;
             return Math.hypot(adx, ady) < 22;
           });
+          const isCorruptedByTroll = nextAgents.some((agent) => {
+            if (agent.kind !== "troll") return false;
+            const adx = memory.worldX - agent.x;
+            const ady = memory.worldY - agent.y;
+            return Math.hypot(adx, ady) < 24;
+          });
           const nextDecay = isRevisited
             ? Math.max(0, memory.decayLevel - 0.045)
             : isPreservedByCollector && (memory.mutated || memory.decayLevel > 0.75)
               ? Math.max(0, memory.decayLevel - 0.04)
               : isPreservedByArchivist
-              ? Math.max(0, memory.decayLevel - 0.03)
-              : Math.min(1, memory.decayLevel + 0.012);
+                ? Math.max(0, memory.decayLevel - 0.03)
+                : isCorruptedByTroll
+                  ? Math.min(1, memory.decayLevel + 0.04)
+                  : Math.min(1, memory.decayLevel + 0.012);
           const base = {
             ...memory,
             decayLevel: nextDecay,
@@ -109,21 +124,32 @@ export function App() {
             }
 
             const risky = [...next].sort((a, b) => b.decayLevel - a.decayLevel)[0];
+            const stable = [...next].sort((a, b) => a.decayLevel - b.decayLevel)[0];
             const anomalyTarget = [...next]
               .filter((m) => m.mutated || m.decayLevel >= 0.8)
               .sort((a, b) => b.decayLevel - a.decayLevel)[0];
-            const target = agent.kind === "collector" ? (anomalyTarget ?? risky) : risky;
+            const target =
+              agent.kind === "collector"
+                ? (anomalyTarget ?? risky)
+                : agent.kind === "troll"
+                  ? (stable ?? risky)
+                  : risky;
             const tx = target.worldX;
             const ty = target.worldY;
             const vx = tx - agent.x;
             const vy = ty - agent.y;
             const d = Math.hypot(vx, vy) || 1;
-            const step = Math.min(agent.kind === "collector" ? 2.7 : 2.2, d);
+            const step = Math.min(agent.kind === "collector" ? 2.7 : agent.kind === "troll" ? 3.1 : 2.2, d);
             const nx = agent.x + (vx / d) * step;
             const ny = agent.y + (vy / d) * step;
             const nextState: EchoAgent["state"] = d < 10 ? "preserving" : "patrolling";
             if (agent.state !== "preserving" && nextState === "preserving") {
-              const verbs = agent.kind === "collector" ? collectorVoice[agent.trait] : traitVoice[agent.trait];
+              const verbs =
+                agent.kind === "collector"
+                  ? collectorVoice[agent.trait]
+                  : agent.kind === "troll"
+                    ? trollVoice[agent.trait]
+                    : traitVoice[agent.trait];
               const verb = verbs[(Math.floor(now / 1000) + index) % verbs.length];
               setAgentEvents((events) =>
                 [
@@ -156,8 +182,9 @@ export function App() {
   const forgottenMemories = memories.length - activeMemories;
   const mutatedMemories = memories.filter((m) => m.mutated).length;
   const preservingAgents = agents.filter((a) => a.state === "preserving").length;
+  const archivistCount = agents.filter((a) => a.kind === "archivist").length;
   const collectorCount = agents.filter((a) => a.kind === "collector").length;
-  const archivistCount = agents.length - collectorCount;
+  const trollCount = agents.filter((a) => a.kind === "troll").length;
 
   return (
     <main className="shell">
@@ -187,6 +214,7 @@ export function App() {
           <p>Mutated memories: {mutatedMemories}</p>
           <p>Archivists: {archivistCount}</p>
           <p>Collectors: {collectorCount}</p>
+          <p>Trolls: {trollCount}</p>
           <p>Citizens preserving: {preservingAgents}/{agents.length}</p>
           <p>
             camera: ({x.toFixed(1)}, {y.toFixed(1)})
