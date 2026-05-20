@@ -17,6 +17,9 @@ export type MemoryEcho = {
   atmosphere: string;
   worldX: number;
   worldY: number;
+  decayLevel: number;
+  mutated: boolean;
+  lastVisitedAt: number;
   createdAt: number;
 };
 
@@ -97,6 +100,38 @@ export function synthesizeMemoryEcho(text: string): MemoryEcho {
     atmosphere: pickAtmosphere(emotions),
     worldX,
     worldY,
+    decayLevel: 0,
+    mutated: false,
+    lastVisitedAt: Date.now(),
     createdAt: Date.now(),
+  };
+}
+
+const mutationDistricts = [
+  "Static Cathedral",
+  "Mirror Cache",
+  "Glitch Garden",
+  "Echo Ruins",
+  "Phantom Exchange",
+];
+
+const mutationAtmospheres = [
+  "broken neon rain, recursive ad jingles, torn skybox",
+  "floating UI shards, delayed voices, phantom train hum",
+  "inverted gravity alleys, CRT ghosts, wet concrete haze",
+  "memory fragments looping at low bitrate",
+];
+
+export function mutateMemory(memory: MemoryEcho): MemoryEcho {
+  const seed = hashString(memory.id + memory.text);
+  const district = mutationDistricts[seed % mutationDistricts.length];
+  const atmosphere = mutationAtmospheres[(seed >>> 3) % mutationAtmospheres.length];
+  const mutatedTags = Array.from(new Set([...memory.semanticTags, "corrupted", "myth", "anomaly"])).slice(0, 6);
+  return {
+    ...memory,
+    mutated: true,
+    district,
+    atmosphere,
+    semanticTags: mutatedTags,
   };
 }
